@@ -1,0 +1,19 @@
+# This is the network config written by 'subiquity'
+network:
+  version: 2
+  renderer: networkd
+  wifis:
+    wlxd037458daf96:
+      access-points:
+        "iarc_wheeled_test":
+          password: "iarcwheeledtest"
+      dhcp4: no
+      addresses: [192.168.50.251/24]
+      routes:
+        - to: default
+          via: 192.168.50.1
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 8.8.8.4
+

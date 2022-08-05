@@ -1,0 +1,29 @@
+camera:
+  brightness: -64
+  camera_frame_id: usb_cam
+  camera_info_url: package://turtlebot3_autorace_camera/calibration/intrinsic_calibration/usbcamerav2_640x480_30fps.yaml
+  contrast: 64
+  exposure_absolute: 100
+  exposure_auto: 1
+  framerate: 30
+  image:
+    compressed:
+      format: jpeg
+      jpeg_quality: 80
+      png_level: 9
+    compressedDepth:
+      depth_max: 10.0
+      depth_quantization: 100.0
+      png_level: 9
+    theora:
+      keyframe_frequency: 64
+      optimize_for: 1
+      quality: 31
+      target_bitrate: 800000
+  image_height: 480
+  image_width: 640
+  io_method: mmap
+  pixel_format: yuyv
+  saturation: 128
+  sharpness: 0
+  video_device: /dev/video0

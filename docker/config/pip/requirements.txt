@@ -1,0 +1,4 @@
+# catkin build Dependent
+osrf-pycommon==0.1.9
+scikit-fuzzy  # 0.4.2
+# tensorflow==1.15

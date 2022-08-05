@@ -1,0 +1,14 @@
+                       contrast (int)    : min=0 max=64 step=1 default=32 value=25
+                     saturation (int)    : min=0 max=128 step=1 default=64 value=128
+                            hue (int)    : min=-40 max=40 step=1 default=0 value=0
+ white_balance_temperature_auto (bool)   : default=1 value=1
+                          gamma (int)    : min=72 max=500 step=1 default=100 value=100
+                           gain (int)    : min=0 max=100 step=1 default=0 value=0
+           power_line_frequency (menu)   : min=0 max=2 default=1 value=1
+      white_balance_temperature (int)    : min=2800 max=6500 step=1 default=4600 value=4600 flags=inactive
+                      sharpness (int)    : min=0 max=6 step=1 default=2 value=0
+         backlight_compensation (int)    : min=0 max=2 step=1 default=1 value=1
+                  exposure_auto (menu)   : min=0 max=3 default=3 value=3
+              exposure_absolute (int)    : min=1 max=5000 step=1 default=157 value=157 flags=inactive
+         exposure_auto_priority (bool)   : default=0 value=1
+

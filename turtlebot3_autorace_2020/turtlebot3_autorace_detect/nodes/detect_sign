@@ -1,0 +1,321 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+################################################################################
+# Copyright 2018 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+# Author: Leon Jung, Gilbert
+import tensorflow as tf
+import numpy as np
+import cv2
+import rospy
+import math
+import os
+import rospkg
+
+from enum import Enum
+from std_msgs.msg import UInt8
+from sensor_msgs.msg import LaserScan, Image, CompressedImage
+from cv_bridge import CvBridge, CvBridgeError
+from nav_msgs.msg import Odometry
+
+class DetectSign():
+    def __init__(self):
+
+        self.sub_image_type = "raw" # you can choose image type "compressed", "raw"
+        self.pub_image_type = "compressed" # you can choose image type "compressed", "raw"
+
+        if self.sub_image_type == "compressed":
+            # subscribes compressed image
+            self.sub_image_original = rospy.Subscriber('/detect/image_input/compressed', CompressedImage, self.cbFindTrafficSign, queue_size = 1)
+        elif self.sub_image_type == "raw":
+            # subscribes raw image
+            # self.sub_image_original = rospy.Subscriber('/detect/image_input', Image, self.cbFindTrafficSign, queue_size = 1)
+            self.sub_image_original = rospy.Subscriber('/detect/image_sign', Image, self.cbFindTrafficSign, queue_size = 1)
+
+        self.pub_traffic_sign = rospy.Publisher('/detect/traffic_sign', UInt8, queue_size=1)
+
+        if self.pub_image_type == "compressed":
+            # publishes traffic sign image in compressed type
+            self.pub_image_traffic_sign = rospy.Publisher('/detect/image_output/compressed', CompressedImage, queue_size = 1)
+        elif self.pub_image_type == "raw":
+            # publishes traffic sign image in raw type
+            self.pub_image_traffic_sign = rospy.Publisher('/detect/image_output', Image, queue_size = 1)
+
+
+        self.cvBridge = CvBridge()
+        ###add laserscan 
+        ###add laserscan sub
+        self.sub_intertolevel = rospy.Subscriber('/detect/change1', UInt8, self.cbintertolevel, queue_size = 1)
+        self.sub_leveltopark = rospy.Subscriber('/detect/change2', UInt8, self.cbleveltopark, queue_size = 1)
+        ###
+        self.sub_scan_obstacle = rospy.Subscriber('/detect/scan', LaserScan, self.cbScanObstacle, queue_size=1)
+        self.is_obstacle_detected = 0
+        self.obs_flag = 0
+        self.sub_odom = rospy.Subscriber('/odom', Odometry, self.cbOdom, queue_size=1)
+        ###
+        ###################### stop doing same case
+        self.sub_no_more_inter = rospy.Subscriber('/detect/no_inter', UInt8, self.cbNoMoreIntersection, queue_size = 1)
+        self.nointer = 0
+        self.sub_no_more_const = rospy.Subscriber('/detect/no_const', UInt8, self.cbNoMoreConstruction, queue_size = 1)
+        self.noconst = 0
+        # self.sub_no_more_park = rospy.Subscriber('/detect/no_park', UInt8, self.cbNoMorePark, queue_size = 1)
+        # self.nopark = 0
+        self.sub_no_more_stop = rospy.Subscriber('/detect/no_stop', UInt8, self.cbNoMoreStop, queue_size = 1)
+        self.nostop = 0
+        ####################### 
+        self.TrafficSign = Enum('TrafficSign', 'divide way construction parking stop tunnel left right noentry')
+
+        self.intersection_flag = 0
+        self.counter = 1
+        self.check_model = False
+        self.load_model()
+        self.current_angle = 0
+
+    def cbOdom(self, odom_msg):
+        self.current_orientation_w = odom_msg.pose.pose.orientation.w
+        qx=odom_msg.pose.pose.orientation.x
+        qy=odom_msg.pose.pose.orientation.y
+        qz=odom_msg.pose.pose.orientation.z
+        qw=odom_msg.pose.pose.orientation.w
+
+        self.current_angle=math.degrees(math.atan2(2 * (qx*qy + qw*qz), qw*qw + qx*qx - qy*qy - qz*qz))
+        
+        
+        
+    def load_model(self):
+        # get an instance of RosPack with the default search paths
+        rospack = rospkg.RosPack()
+
+        # list all packages, equivalent to rospack list
+        rospack.list() 
+
+        # get the file path for rospy_tutorials
+        path = rospack.get_path('turtlebot3_autorace_detect')
+        # print("path",path)
+        path += "/costom_vision"
+
+        ###載入模型
+        # Import the TF graph
+        self.detect_graph = tf.Graph()
+        with self.detect_graph.as_default():
+            self.graph_def = tf.GraphDef()
+            with tf.gfile.FastGFile(path+"/model.pb", 'rb') as f:
+                self.graph_def.ParseFromString(f.read())
+                tf.import_graph_def(self.graph_def, name='')
+        
+        self.sess = tf.Session(graph=self.detect_graph)
+        # self.graph_base.get_default_graph()
+        ###載入標籤
+        # Create a list of labels.
+        self.labels = []
+        with open(path+"/labels.txt", 'rt') as lf:
+            for l in lf:
+                self.labels.append(l.strip())
+
+    def oprate(self, image):
+        if(self.check_model==False):
+            self.load_model()
+            self.check_model=True
+
+        ###協助程式函式
+        def crop_center(img,cropx,cropy):
+            h, w = img.shape[:2]
+            startx = w//2-(cropx//2)
+            starty = h//2-(cropy//2)
+            return img[starty:starty+cropy, startx:startx+cropx]
+
+        def resize_down_to_1600_max_dim(image):
+            h, w = image.shape[:2]
+            if (h < 1600 and w < 1600):
+                return image
+
+            new_size = (1600 * w // h, 1600) if (h > w) else (1600, 1600 * h // w)
+            return cv2.resize(image, new_size, interpolation = cv2.INTER_LINEAR)
+
+        def resize_to_256_square(image):
+            h, w = image.shape[:2]
+            return cv2.resize(image, (256, 256), interpolation = cv2.INTER_LINEAR)
+
+        ###處理維度 >1600 的影像
+        # If the image has either w or h greater than 1600 we resize it down respecting
+        # aspect ratio such that the largest dimension is 1600
+        image = resize_down_to_1600_max_dim(image)
+
+
+        ###裁剪中央最大的正方形
+        # We next get the largest center square
+        h, w = image.shape[:2]
+        min_dim = min(w,h)
+        max_square_image = crop_center(image, min_dim, min_dim)
+
+
+        ###將大小往下調整為 256x256
+        # Resize that square down to 256x256
+        augmented_image = resize_to_256_square(max_square_image)
+
+
+        ###裁剪模型特定輸入大小的中心
+        # The compact models have a network size of 227x227, the model requires this size.
+        network_input_size = 224
+
+        # Crop the center for the specified network_input_Size
+        augmented_image = crop_center(augmented_image, network_input_size, network_input_size)
+
+        ###預測影像
+        # These names are part of the model and cannot be changed.
+        output_layer = 'loss:0'
+        input_node = 'Placeholder:0'
+
+        # with tf.Session(graph=self.detect_graph) as sess:
+        prob_tensor = self.detect_graph.get_tensor_by_name(output_layer)
+        predictions, = self.sess.run(prob_tensor, {input_node: [augmented_image] })
+
+        ###View the results
+        # Print the highest probability label
+
+        # Or you can print out all of the results mapping labels to probabilities.
+        # label_index = 0
+        # for p in predictions:
+        #     truncated_probablity = np.float64(round(p,8))
+        #     #print (labels[label_index],":%4f "%truncated_probablity,end=" | ")
+        #     print (self.labels[label_index],":%4f "%truncated_probablity)
+        #     label_index += 1
+        highest_probability_index = np.argmax(predictions)
+        truncated_probablity = np.float64(predictions[highest_probability_index])
+
+        if(truncated_probablity>0.8):
+            print('Classified as:' + self.labels[highest_probability_index],":%4f "%truncated_probablity)
+            # return self.labels[highest_probability_index]
+
+            msg_sign = UInt8()
+            #print(self.current_angle)
+            if(highest_probability_index==0):
+                print("sex construction")
+                if self.current_angle<20 and self.current_angle>-20:
+                    print("sex construction2")
+                    msg_sign.data = self.TrafficSign.construction.value
+                    self.pub_traffic_sign.publish(msg_sign)
+                else:
+                    pass
+            elif(highest_probability_index==1):
+                msg_sign.data = self.TrafficSign.left.value
+                self.pub_traffic_sign.publish(msg_sign)
+            elif(highest_probability_index==2):
+                if(self.current_angle>150 or self.current_angle<-150):
+                    msg_sign.data = self.TrafficSign.parking.value
+                    self.pub_traffic_sign.publish(msg_sign)
+                else:
+                    pass
+            elif(highest_probability_index==3):
+                msg_sign.data = self.TrafficSign.right.value
+                self.pub_traffic_sign.publish(msg_sign)
+            elif(highest_probability_index==4):
+                if(self.current_angle>-20 and self.current_angle<20):
+                    print("sex level")
+                    msg_sign.data = self.TrafficSign.stop.value
+                    self.pub_traffic_sign.publish(msg_sign)
+                else:
+                    pass
+            elif(highest_probability_index==5):
+                if(self.current_angle>-120 and self.current_angle<-30):
+                    msg_sign.data = self.TrafficSign.tunnel.value
+                    self.pub_traffic_sign.publish(msg_sign)
+                else:
+                    pass
+            elif(highest_probability_index==6):
+                if(self.current_angle>30 and self.current_angle<120):
+                    msg_sign.data = self.TrafficSign.way.value
+                    self.pub_traffic_sign.publish(msg_sign)
+                else:
+                    pass
+                
+        
+    def cbintertolevel(self, laser_msg):
+        if laser_msg.data == 1:
+            self.obs_flag = 1
+            rospy.loginfo("inter over obs flag")
+
+    def cbleveltopark(self, nolaser_msg):
+        if nolaser_msg.data == 1:
+            self.obs_flag = 0
+            rospy.loginfo("obs over")
+
+    def cbNoMoreIntersection(self,no_inter_msg):
+        if no_inter_msg.data == 1:
+            self.nointer = 1
+            rospy.loginfo("nointer pls in detect sign")
+
+    def cbNoMoreConstruction(self,no_const_msg):
+        if no_const_msg.data == 1:
+            self.noconst = 1
+            rospy.loginfo("noconst pls")
+
+    # def cbNoMorePark(self,no_park_msg):
+    #     if no_park_msg.data == 1:
+    #         self.nopark = 1
+    #         rospy.loginfo("nopark pls")
+
+    def cbNoMoreStop(self,no_stop_msg):
+        if no_stop_msg.data == 1:
+            self.nostop = 1
+            rospy.loginfo("nostop pls")
+
+    def fnCalcMSE(self, arr1, arr2):
+            squared_diff = (arr1 - arr2) ** 2
+            sum = np.sum(squared_diff)
+            num_all = arr1.shape[0] * arr1.shape[1] #cv_image_input and 2 should have same shape
+            err = sum / num_all
+            return err
+
+    def cbFindTrafficSign(self, image_msg):
+        if self.sub_image_type == "compressed":
+            #converting compressed image to opencv image
+            np_arr = np.fromstring(image_msg.data, np.uint8)
+            cv_image_input = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+        elif self.sub_image_type == "raw":
+            cv_image_input = self.cvBridge.imgmsg_to_cv2(image_msg, "bgr8")
+        if np.shape(cv_image_input) != ():
+            res = self.oprate(cv_image_input)
+
+    ###add for scan obs
+    def cbScanObstacle(self, scan):
+        if self.obs_flag == 1:
+            angle_scan = 24
+            scan_start = 0 - angle_scan
+            scan_end = 0 + angle_scan
+            threshold_distance = 0.30
+            is_obstacle_detected = 0
+
+            for i in range(scan_start, scan_end):
+                if scan.ranges[i] < threshold_distance and scan.ranges[i] > 0.01:
+                    is_obstacle_detected = 1
+                    # rospy.loginfo("obs")
+
+            self.is_obstacle_detected = is_obstacle_detected
+
+    ###
+    def main(self):
+        rospy.spin()
+
+if __name__ == '__main__':
+    # img = cv2.imread("88.png")
+    # cv2.imshow("test",img)
+    # cv2.waitKey(1000)
+    # res = oprate(img)
+    rospy.init_node('detect_sign_f')
+    node = DetectSign()
+    node.main()

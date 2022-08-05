@@ -1,0 +1,26 @@
+image_width: 320
+image_height: 240
+camera_name: narrow_stereo
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [101.85916,   0.     , 159.5    ,
+           0.     , 101.85916, 119.5    ,
+           0.     ,   0.     ,   1.     ]
+camera_model: fisheye
+distortion_coefficients:
+  rows: 1
+  cols: 4
+  data: [0.000000, 0.000000, 0.000000, 0.000000]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1., 0., 0.,
+         0., 1., 0.,
+         0., 0., 1.]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [101.85916,   0.     , 159.5    ,   0.     ,
+           0.     , 101.85916, 119.5    ,   0.     ,
+           0.     ,   0.     ,   1.     ,   0.     ]

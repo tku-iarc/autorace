@@ -1,0 +1,7 @@
+construction
+left
+parking
+right
+stop
+tunnel
+way

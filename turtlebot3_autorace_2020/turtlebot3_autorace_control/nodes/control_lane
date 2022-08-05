@@ -1,0 +1,242 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+################################################################################
+# Copyright 2018 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+# Author: Leon Jung, Gilbert
+
+import rospy
+import numpy as np
+from std_msgs.msg import UInt8, Float64
+from geometry_msgs.msg import Twist
+from enum import Enum
+import skfuzzy as fuzz
+import skfuzzy.control as ctrl
+import math
+
+class ControlLane():
+    def __init__(self):
+        self.sub_lane = rospy.Subscriber('/control/lane', Float64, self.cbFollowLane, queue_size = 1)
+        self.sub_max_vel = rospy.Subscriber('/control/max_vel', Float64, self.cbGetMaxVel, queue_size = 1)
+        self.pub_cmd_vel = rospy.Publisher('/control/cmd_vel', Twist, queue_size = 1)
+        self.pub_mode_return = rospy.Subscriber('/core/returned_mode', UInt8, self.GetMode, queue_size=1)
+        ##########
+        self.sub_errmoving = rospy.Subscriber('/control/errmoving/state', UInt8, self.cberrmoving, queue_size= 1)
+        self.sub_lane_down = rospy.Subscriber('/control/lane_down', Float64, self.Getdown, queue_size = 1)
+        self.sub_lane_top = rospy.Subscriber('/control/lane_top', Float64, self.GetTop, queue_size = 1)
+        ##########
+        self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light intersection construction parking_lot level_crossing tunnel')
+        self.mode = self.CurrentMode.lane_following.value
+
+        self.flag = 0
+        self.lastError = 0
+        self.lane_down = 0
+        self.lane_top = 0
+        self.MAX_VEL = 0.105
+        self.save_vel =0.105
+        self.count=1
+        self.MAX_VEL_SAV = 0.0
+
+        self.err_flag = 0
+        rospy.on_shutdown(self.fnShutDown)
+
+    def calangle(self, lane_down, lane_top):
+        #計算道路彎度
+        center_down = lane_down
+        center_top = lane_top
+    
+        lane_angle = math.atan(abs(center_top - center_down)/600)*180/math.pi
+        #print("x_y",center_top - center_down,"lane_angle",lane_angle)
+        return lane_angle
+
+
+    def fuzzycontrol_vel(self,vel,angle):
+        x_vel_range=np.arange(0.1,0.12,.01,np.float32)
+        x_lane_angle_range=np.arange(0,90,.01,np.float32)
+        y_ac_range=np.arange(-0.02,0.02,.001,np.float32)
+
+        #模糊控制變量
+
+        x_vel=ctrl.Antecedent(x_vel_range, 'vel')
+        x_lane_angle=ctrl.Antecedent(x_lane_angle_range, 'lane_angle')
+        y_ac=ctrl.Consequent(y_ac_range, 'ac')
+
+        # 模糊集合歸屬函数
+
+        x_vel['S']=fuzz.trapmf(x_vel_range,[0.1,0.1,0.102,0.104])
+        x_vel['M']=fuzz.trimf(x_vel_range,[0.103,0.105,0.107])
+        x_vel['F']=fuzz.trapmf(x_vel_range,[0.106,0.108,0.12,0.12])
+
+        x_lane_angle['S']=fuzz.trapmf(x_lane_angle_range,[0,0,5,20])
+        x_lane_angle['M']=fuzz.trimf(x_lane_angle_range,[10,25,40])
+        x_lane_angle['B']=fuzz.trapmf(x_lane_angle_range,[30,45,90,90])
+
+        y_ac['NB']=fuzz.trapmf(y_ac_range,[-0.02,-0.02,-0.01,-0.005])
+        y_ac['NS']=fuzz.trimf(y_ac_range,[-0.01,-0.005,0])
+        y_ac['ZO']=fuzz.trimf(y_ac_range,[-0.005,0,0.005])
+        y_ac['PS']=fuzz.trimf(y_ac_range,[0,0.005,0.01])
+        y_ac['PB']=fuzz.trapmf(y_ac_range,[0.005,0.01,0.02,0.02])
+
+        # 解模糊化方法
+
+        y_ac.defuzzify_method='centroid'
+
+        # 輸出為NB的規則
+        ruleNB = ctrl.Rule(antecedent=(
+        (x_vel['F'] & x_lane_angle['B']) ),
+        consequent=y_ac['NB'], label='rule NB')
+        # 輸出為NS的規則
+        ruleNS = ctrl.Rule(antecedent=(
+        (x_vel['F'] & x_lane_angle['M']) |
+        (x_vel['M'] & x_lane_angle['B']) ),
+        consequent=y_ac['NS'], label='rule NS')
+        # 輸出為ZO的規則
+        ruleZO = ctrl.Rule(antecedent=(
+        (x_vel['F'] & x_lane_angle['S']) |
+        (x_vel['M'] & x_lane_angle['M']) |
+        (x_vel['S'] & x_lane_angle['B']) ),
+        consequent=y_ac['ZO'], label='rule ZO')
+        # 輸出為PS的規則
+        rulePS = ctrl.Rule(antecedent=((x_vel['M'] & x_lane_angle['S']) |
+        (x_vel['S'] & x_lane_angle['M']) ),
+        consequent=y_ac['PS'], label='rule PS')
+        # 輸出為PB的規則
+        rulePB = ctrl.Rule(antecedent=(
+        (x_vel['S'] & x_lane_angle['S'])),
+        consequent=y_ac['PB'], label='rule PB')
+
+        # 系统和運行環境初始化
+        
+        system = ctrl.ControlSystem(rules=[ruleNB, ruleNS, ruleZO,rulePS,rulePB])
+        sim = ctrl.ControlSystemSimulation(system)
+        sim.input['vel'] = vel
+        sim.input['lane_angle'] = angle
+        sim.compute()   # 運行系統
+        output_powder = round(sim.output['ac'],3)
+        
+        
+        # 输出结果
+
+        return output_powder
+
+    def cbGetMaxVel(self, max_vel_msg):
+        self.MAX_VEL_SAV = max_vel_msg.data
+        print(self.MAX_VEL_SAV)
+        self.flag = 1
+        return self.flag
+        
+    
+    def GetTop(self,top_pix):
+        self.lane_top = top_pix.data
+        #print("lane_top",self.lane_top)
+        return self.lane_top
+
+    def Getdown(self,down_pix):
+        self.lane_down = down_pix.data
+        #print("lane_down",self.lane_down)
+        return self.lane_down
+
+    def GetMode(self,mode_msg):
+        self.mode = mode_msg.data
+        print("get mode",self.mode)
+        return self.mode
+
+    def cberrmoving(self, err_msg):
+        rospy.loginfo("find no lane")
+        self.err_flag = 1
+
+    def cbFollowLane(self, desired_center):
+        
+        center = desired_center.data
+
+        error = center - 500
+
+        Kp = 0.0018
+        Kd = 0.007
+
+        
+        self.angle = self.calangle(self.lane_down,self.lane_top)
+        self.ac= self.fuzzycontrol_vel(self.save_vel,self.angle)
+        
+        self.MAX_VEL = self.save_vel + self.ac
+        self.save_vel = self.MAX_VEL
+        #避免速度太快
+        if(self.MAX_VEL >= 0.15 ):
+            self.MAX_VEL == 0.15
+            print(self.save_vel)
+            print("danger!!!!!!!!!!!!!!")
+            self.save_vel = self.MAX_VEL
+        
+        
+        if(self.mode==self.CurrentMode.lane_following.value):
+            if(self.count %5==0):
+                self.ac= self.fuzzycontrol_vel(self.save_vel,self.angle)
+                self.MAX_VEL = self.save_vel + self.ac
+                
+                if(self.MAX_VEL >= 0.15 ):
+                    self.MAX_VEL == 0.15
+                    print("danger!!!!!!!!!!!!!!")
+                
+
+                self.save_vel = self.MAX_VEL
+                self.count = 1
+                
+            else:
+                self.count+=1
+
+        
+        if(self.flag==1):
+            self.MAX_VEL = self.MAX_VEL_SAV
+            self.flag = 0
+            
+        
+
+
+        angular_z = Kp * error + Kd * (error - self.lastError)
+        self.lastError = error
+        twist = Twist()
+        twist.linear.x = self.MAX_VEL
+        twist.linear.y = 0
+        twist.linear.z = 0
+        twist.angular.x = 0
+        twist.angular.y = 0
+        
+        twist.angular.z*=1.2
+        twist.angular.z = -max(angular_z, -2.0) if angular_z < 0 else -min(angular_z, 2.0)
+        
+        
+        self.pub_cmd_vel.publish(twist)
+
+    def fnShutDown(self):
+        rospy.loginfo("Shutting down. cmd_vel will be 0")
+
+        twist = Twist()
+        twist.linear.x = 0
+        twist.linear.y = 0
+        twist.linear.z = 0
+        twist.angular.x = 0
+        twist.angular.y = 0
+        twist.angular.z = 0
+        self.pub_cmd_vel.publish(twist) 
+
+    def main(self):
+        rospy.spin()
+
+if __name__ == '__main__':
+    rospy.init_node('control_lane')
+    node = ControlLane()
+    node.main()

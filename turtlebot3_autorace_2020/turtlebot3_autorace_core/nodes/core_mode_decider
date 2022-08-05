@@ -1,0 +1,198 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
+################################################################################
+# Copyright 2018 ROBOTIS CO., LTD.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+################################################################################
+
+# Author: Leon Jung, Gilbert
+
+import rospy
+import numpy as np
+from enum import Enum
+from std_msgs.msg import UInt8
+from turtlebot3_autorace_msgs.msg import MovingParam
+
+class CoreModeDecider():
+    def __init__(self):
+        # subscribes : invoking object detected
+        self.sub_traffic_light = rospy.Subscriber('/detect/traffic_light', UInt8, self.cbInvokedByTrafficLight, queue_size=1)
+        self.sub_traffic_sign = rospy.Subscriber('/detect/traffic_sign', UInt8, self.cbInvokedByTrafficSign, queue_size=1)
+
+        self.sub_returned_mode = rospy.Subscriber('/core/returned_mode', UInt8, self.cbReturnedMode, queue_size=1)
+
+        # publishes : decided mode
+        self.pub_debug = rospy.Publisher('/core/debug', UInt8, queue_size = 1)
+
+        # self.pub_cmd_vel = rospy.Publisher('/cmd_vel', Twist, queue_size = 1)
+        self.pub_debug = rospy.Publisher('/core/debug', UInt8, queue_size = 1)
+        self.pub_moving = rospy.Publisher('/control/moving/state', MovingParam, queue_size= 1)
+
+        self.pub_decided_mode = rospy.Publisher('/core/decided_mode', UInt8, queue_size=1)
+
+        self.InvokedObject = Enum('InvokedObject', 'traffic_sign traffic_light')
+        self.TrafficSign = Enum('TrafficSign', 'divide way construction parking stop tunnel left right noentry')
+        self.CurrentMode = Enum('CurrentMode', 'idle lane_following traffic_light intersection construction parking_lot level_crossing tunnel')
+        ###################### stop doing same case
+        self.sub_no_more_inter = rospy.Subscriber('/detect/no_inter', UInt8, self.cbNoMoreIntersection, queue_size = 1)
+        self.nointer = 0
+        self.sub_no_more_const = rospy.Subscriber('/detect/no_const', UInt8, self.cbNoMoreConstruction, queue_size = 1)
+        self.noconst = 0
+        self.sub_no_more_park = rospy.Subscriber('/detect/no_park', UInt8, self.cbNoMorePark, queue_size = 1)
+        self.nopark = 0
+        self.sub_no_more_stop = rospy.Subscriber('/detect/no_stop', UInt8, self.cbNoMoreStop, queue_size = 1)
+        self.nostop = 0
+        ####################### 
+        self.fnInitMode()
+        self.fnInitSelf()
+
+    # Invoke if traffic light is detected
+    def cbInvokedByTrafficLight(self, traffic_light_type_msg):
+        rospy.loginfo("invoke light")
+        self.fnDecideMode(self.InvokedObject.traffic_light.value, traffic_light_type_msg)
+        rospy.loginfo("Traffic light detected")
+
+    def cbInvokedByTrafficSign(self, traffic_sign_type_msg):
+        # rospy.loginfo("invoke sign")
+        if(self.current_mode == self.CurrentMode.lane_following.value):
+            print("sign lane_following mode")
+        elif(self.current_mode == self.CurrentMode.traffic_light.value):
+            print("sign traffic_light")
+        else:
+            print("else ", self.current_mode)
+        self.fnDecideMode(self.InvokedObject.traffic_sign.value, traffic_sign_type_msg)
+        # rospy.loginfo("Traffic sign detected")
+
+    def cbNoMoreIntersection(self,no_inter_msg):
+        if no_inter_msg.data == 1:
+            self.nointer = 1
+            rospy.loginfo("nointer pls")
+
+    def cbNoMoreConstruction(self,no_const_msg):
+        if no_const_msg.data == 1:
+            self.noconst = 1
+            rospy.loginfo("noconst pls")
+
+    def cbNoMorePark(self,no_park_msg):
+        if no_park_msg.data == 1:
+            self.nopark = 1
+            rospy.loginfo("nopark pls")
+
+    def cbNoMoreStop(self,no_stop_msg):
+        if no_stop_msg.data == 1:
+            self.nostop = 1
+            rospy.loginfo("nostop pls")
+
+    def cbReturnedMode(self, mode):
+        rospy.loginfo("Init Mode")
+        self.fnInitMode()
+
+    def fnInitMode(self):                                                   # starts only when the program is started initially or any mission is completed
+        # if self.nointer == 1:
+        #     self.current_mode = self.CurrentMode.construction.value
+        #     rospy.loginfo("force con")
+
+        # elif self.noconst == 1:
+        #     self.current_mode = self.CurrentMode.level_crossing.value
+        #     rospy.loginfo("force lev")
+
+        # else:
+        
+        self.current_mode = self.CurrentMode.lane_following.value
+        self.fnPublishMode()
+
+    def fnInitSelf(self):
+        rospy.loginfo("Init")
+        self.current_mode = self.CurrentMode.traffic_light.value
+        rospy.loginfo("Current Mode : Traffic Light")
+        # self.current_mode = self.CurrentMode.lane_following.value
+        # rospy.loginfo("Current Mode : lane_following")
+
+    def fnDecideMode(self, invoked_object, msg_data):                        # starts only when the traffic sign / traffic light is detected & current_mode is lane_following
+        # print("self.current_mode", self.current_mode)
+        # print("msg_data.data", msg_data.data)
+        park_cnt=0
+        if self.current_mode == self.CurrentMode.lane_following.value:
+            print("lane following")
+            if invoked_object == self.InvokedObject.traffic_sign.value:      # Any Sign detected
+                if msg_data.data == self.TrafficSign.way.value:              # way Sign detected
+                    if self.nointer == 0:
+                        self.current_mode = self.CurrentMode.intersection.value
+                        rospy.loginfo("detect sign : way")  
+                    else:
+                        pass
+                # elif msg_data.data == self.TrafficSign.left.value:          # left sign deteced
+                #     if self.nointer == 0:
+                #         self.current_mode = self.CurrentMode.intersection.value
+                #         rospy.loginfo("detect sign : left_sign")  
+                #     else:
+                #         pass
+                # elif msg_data.data == self.TrafficSign.right.value:          # right sign deteced
+                #     if self.nointer == 0:
+                #         self.current_mode = self.CurrentMode.intersection.value
+                #         rospy.loginfo("detect sign : right_sign") 
+                #     else:
+                #         pass
+                elif msg_data.data == self.TrafficSign.construction.value:   # construction sign deteced
+                    
+                    if self.noconst == 0 :
+                        self.current_mode = self.CurrentMode.construction.value
+                        rospy.loginfo("currentmode : construction detected")
+                    else:
+                        pass
+                elif msg_data.data == self.TrafficSign.stop.value:           # Stop Sign detected
+                    if self.nostop == 0:
+                        self.current_mode = self.CurrentMode.level_crossing.value
+                        rospy.loginfo("detect sign : Stop") 
+                    else:
+                        pass
+                elif msg_data.data == self.TrafficSign.parking.value:        # Parking Sign detected
+                    if self.nopark == 0:
+                        pass
+                        self.current_mode = self.CurrentMode.parking_lot.value
+                        rospy.loginfo("detect sign : Parking")
+                        self.fnPublishMode(self.CurrentMode.parking_lot.value)
+                    else:
+                        pass
+                elif msg_data.data == self.TrafficSign.tunnel.value:         # Tunnel Sign detected
+                    self.current_mode = self.CurrentMode.tunnel.value
+                    rospy.loginfo("detect sign : Tunnel")
+
+
+            self.fnPublishMode()
+
+        elif self.current_mode == self.CurrentMode.traffic_light.value:
+            if invoked_object == self.InvokedObject.traffic_light.value:
+                self.current_mode = self.CurrentMode.lane_following.value
+                self.fnPublishMode()
+
+        else:
+            pass
+
+    def fnPublishMode(self, mode=0):
+        decided_mode = UInt8()
+        if(mode==0):
+            decided_mode.data = self.current_mode
+        else:
+            decided_mode.data = mode
+        self.pub_decided_mode.publish(decided_mode)
+
+    def main(self):
+        rospy.spin()
+
+if __name__ == '__main__':
+    rospy.init_node('core_mode_decider')
+    node = CoreModeDecider()
+    node.main()
