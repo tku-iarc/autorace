@@ -41,8 +41,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   nano vim \
   gnome-terminal libcanberra-gtk-module libcanberra-gtk3-module \
   # Work tools
-  udev systemd g++\
+  udev systemd g++ \
+  v4l-utils \
   python-pip python-catkin-tools python-setuptools \
+  python-rosdep \
   # Turtlebot3
   ros-melodic-hls-lfcd-lds-driver ros-melodic-dynamixel-sdk \
   ros-melodic-turtlebot3 ros-melodic-turtlebot3-msgs \
@@ -52,10 +54,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ros-melodic-rosserial-arduino ros-melodic-rosserial-python \
   ros-melodic-rosserial-server ros-melodic-rosserial-client \
   ros-melodic-rosserial-msgs ros-melodic-amcl ros-melodic-map-server \
-  ros-melodic-camera-info-manager \
+  ros-melodic-camera-info-manager ros-melodic-rosbridge-server \
   ros-melodic-move-base ros-melodic-compressed-image-transport \
   ros-melodic-gmapping ros-melodic-navigation \
   ros-melodic-interactive-markers \
+  ros-melodic-web-video-server ros-melodic-rosbridge-server \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists
 
@@ -67,8 +70,12 @@ COPY config .
 ## ROS Arguments
 # Is the computer master or slave in ROS
 ARG ROS_TYPE=MASTER
-ARG ROS_MASTER_IP=localhost
-ARG ROS_SLAVE_IP=localhost
+ARG ROS_MASTER_IP=192.168.50.251
+ARG ROS_SLAVE_IP=192.168.50.24
+
+## Turtlebot3 model
+ENV TURTLEBOT3_MODEL=burger
+ENV GAZEBO_MODE=false
 
 ## Favorite shell when using byobu
 ARG BYOBU_SHELL=zsh
@@ -83,8 +90,15 @@ RUN chmod 777 /entrypoint.sh
 
 WORKDIR /home/${USER}
 
+## AutoRace package dep init
+RUN rosdep init
+
 ## Switch user to ${USER}
 USER ${USER}
+
+## AutoRace Package dep update
+RUN rosdep update
+
 
 RUN sudo mkdir work
 

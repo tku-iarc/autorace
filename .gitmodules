@@ -1,0 +1,3 @@
+[submodule "usb_cam"]
+	path = usb_cam
+	url = https://github.com/ycpss91255/dynamic_usb_cam.git

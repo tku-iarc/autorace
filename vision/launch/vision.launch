@@ -1,0 +1,12 @@
+<?xml version="1.0" ?>
+<launch> 
+  <rosparam command="load" file="$(find vision)/config/tb3.yaml"/>
+  <!--include file="$(find rosbridge_server)/launch/rosbridge_websocket.launch">
+    <arg name="unregister_timeout" value="5.0"/>
+  </include-->
+  <!--<node name="web_video_server" pkg="web_video_server" type="web_video_server"/>-->
+  <!--node name="mjpeg_server" pkg="mjpeg_server" type="mjpeg_server" respawn="true" respawn_delay="2"/-->
+  <!--include file="$(find raspicam_node)/launch/camerav2_410x308_30fps.launch" /-->
+  <!--<node name="usb_cam" pkg="usb_cam" type="usb_cam_node" respawn="true" respawn_delay="5"/>-->
+  <node name="image_converter" pkg="vision" type="image_converter" respawn="true" respawn_delay="5"/>
+</launch>

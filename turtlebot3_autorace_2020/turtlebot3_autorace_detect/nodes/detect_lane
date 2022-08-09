@@ -49,14 +49,9 @@ class DetectLane():
         self.lightness_yellow_l = rospy.get_param("detect/lane/yellow/lightness_l", 81)
         self.lightness_yellow_h = rospy.get_param("detect/lane/yellow/lightness_h", 255)
 
-        self.lower_white = np.array([self.hue_white_l, self.saturation_white_l , self.lightness_white_l])
-        self.upper_white = np.array([self.hue_white_h, self.saturation_white_h, self.lightness_white_h])
-        self.lower_yellow = np.array([self.hue_yellow_l, self.saturation_yellow_l , self.lightness_yellow_l])
-        self.upper_yellow = np.array([self.hue_yellow_h, self.saturation_yellow_h, self.lightness_yellow_h])
-
         self.is_calibration_mode = rospy.get_param("/detect_lane/is_detection_calibration_mode", False)
-        #if self.is_calibration_mode == True:
-        #    srv_detect_lane = Server(DetectLaneParamsConfig, self.cbGetDetectLaneParam)
+        if self.is_calibration_mode == True:
+            srv_detect_lane = Server(DetectLaneParamsConfig, self.cbGetDetectLaneParam)
 
         self.sub_image_type = "raw"         # you can choose image type "compressed", "raw"
         self.pub_image_type = "compressed"  # you can choose image type "compressed", "raw"
@@ -87,8 +82,6 @@ class DetectLane():
                 self.pub_image_yellow_lane = rospy.Publisher('/detect/image_output_sub2', Image, queue_size = 1)
 
         self.pub_lane = rospy.Publisher('/detect/lane', Float64, queue_size = 1)
-        self.pub_lane_top = rospy.Publisher('/detect/lane_top', Float64, queue_size = 1)
-        self.pub_lane_down = rospy.Publisher('/detect/lane_down', Float64, queue_size = 1)
 
         # subscribes state : yellow line reliability
         self.pub_yellow_line_reliability = rospy.Publisher('/detect/yellow_line_reliability', UInt8, queue_size=1)
@@ -155,9 +148,9 @@ class DetectLane():
         elif self.sub_image_type == "raw":
             cv_image = self.cvBridge.imgmsg_to_cv2(image_msg, "bgr8")
 
-        # find White and Yellow Lanes, 0 is white,1 is yellow
-        white_fraction, cv_white_lane = self.maskLane(cv_image,self.lower_white,self.upper_white,0)
-        yellow_fraction, cv_yellow_lane = self.maskLane(cv_image,self.lower_yellow,self.upper_yellow,1)
+        # find White and Yellow Lanes
+        white_fraction, cv_white_lane = self.maskWhiteLane(cv_image)
+        yellow_fraction, cv_yellow_lane = self.maskYellowLane(cv_image)
 
         try:
             if yellow_fraction > 3000:
@@ -193,12 +186,23 @@ class DetectLane():
 
         self.make_lane(cv_image, white_fraction, yellow_fraction)
 
-    def maskLane(self, image, color_lower, color_upper, color_type):
+    def maskWhiteLane(self, image):
         # Convert BGR to HSV
         hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
+        Hue_l = self.hue_white_l
+        Hue_h = self.hue_white_h
+        Saturation_l = self.saturation_white_l
+        Saturation_h = self.saturation_white_h
+        Lightness_l = self.lightness_white_l
+        Lightness_h = self.lightness_white_h
+
+        # define range of white color in HSV
+        lower_white = np.array([Hue_l, Saturation_l, Lightness_l])
+        upper_white = np.array([Hue_h, Saturation_h, Lightness_h])
+
         # Threshold the HSV image to get only white colors
-        mask = cv2.inRange(hsv, color_lower, color_upper)
+        mask = cv2.inRange(hsv, lower_white, upper_white)
 
         # Bitwise-AND mask and original image
         res = cv2.bitwise_and(image, image, mask = mask)
@@ -207,11 +211,11 @@ class DetectLane():
 
         if self.is_calibration_mode == False:
             if fraction_num > 35000:
-                if self.lightness_white_l < 250:   
-                    self.lightness_white_l += 5      
+                if self.lightness_white_l < 250:
+                    self.lightness_white_l += 5
             elif fraction_num < 5000:
-                if self.lightness_white_l > 50:    
-                    self.lightness_white_l -= 5      
+                if self.lightness_white_l > 50:
+                    self.lightness_white_l -= 5
 
         how_much_short = 0
 
@@ -220,28 +224,17 @@ class DetectLane():
                 how_much_short += 1
 
         how_much_short = 600 - how_much_short
-        if color_type == 0:
-            if how_much_short > 100:
-                if self.reliability_white_line >= 5:
-                    self.reliability_white_line -= 5
-            elif how_much_short <= 100:
-                if self.reliability_white_line <= 99:
-                    self.reliability_white_line += 5
-            msg_white_line_reliability = UInt8()
-            msg_white_line_reliability.data = self.reliability_white_line
-            self.pub_white_line_reliability.publish(msg_white_line_reliability)
 
-        elif color_type == 1:
-            if how_much_short > 100:
-                if self.reliability_yellow_line >= 5:
-                    self.reliability_yellow_line -= 5
-            elif how_much_short <= 100:
-                if self.reliability_yellow_line <= 99:
-                    self.reliability_yellow_line += 5
-            msg_yellow_line_reliability = UInt8()
-            msg_yellow_line_reliability.data = self.reliability_yellow_line
-            self.pub_yellow_line_reliability.publish(msg_yellow_line_reliability)
+        if how_much_short > 100:
+            if self.reliability_white_line >= 5:
+                self.reliability_white_line -= 5
+        elif how_much_short <= 100:
+            if self.reliability_white_line <= 99:
+                self.reliability_white_line += 5
 
+        msg_white_line_reliability = UInt8()
+        msg_white_line_reliability.data = self.reliability_white_line
+        self.pub_white_line_reliability.publish(msg_white_line_reliability)
 
         if self.is_calibration_mode == True:
             if self.pub_image_type == "compressed":
@@ -254,6 +247,66 @@ class DetectLane():
 
         return fraction_num, mask
 
+    def maskYellowLane(self, image):
+        # Convert BGR to HSV
+        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+
+        Hue_l = self.hue_yellow_l
+        Hue_h = self.hue_yellow_h
+        Saturation_l = self.saturation_yellow_l
+        Saturation_h = self.saturation_yellow_h
+        Lightness_l = self.lightness_yellow_l
+        Lightness_h = self.lightness_yellow_h
+
+        # define range of yellow color in HSV
+        lower_yellow = np.array([Hue_l, Saturation_l, Lightness_l])
+        upper_yellow = np.array([Hue_h, Saturation_h, Lightness_h])
+
+        # Threshold the HSV image to get only yellow colors
+        mask = cv2.inRange(hsv, lower_yellow, upper_yellow)
+
+        # Bitwise-AND mask and original image
+        res = cv2.bitwise_and(image, image, mask = mask)
+
+        fraction_num = np.count_nonzero(mask)
+
+        if self.is_calibration_mode == False:
+            if fraction_num > 35000:
+                if self.lightness_yellow_l < 250:
+                    self.lightness_yellow_l += 20
+            elif fraction_num < 5000:
+                if self.lightness_yellow_l > 90:
+                    self.lightness_yellow_l -= 20
+
+        how_much_short = 0
+
+        for i in range(0, 600):
+            if np.count_nonzero(mask[i,::]) > 0:
+                how_much_short += 1
+        
+        how_much_short = 600 - how_much_short
+
+        if how_much_short > 100:
+            if self.reliability_yellow_line >= 5:
+                self.reliability_yellow_line -= 5
+        elif how_much_short <= 100:
+            if self.reliability_yellow_line <= 99:
+                self.reliability_yellow_line += 5
+
+        msg_yellow_line_reliability = UInt8()
+        msg_yellow_line_reliability.data = self.reliability_yellow_line
+        self.pub_yellow_line_reliability.publish(msg_yellow_line_reliability)
+
+        if self.is_calibration_mode == True:
+            if self.pub_image_type == "compressed":
+                # publishes yellow lane filtered image in compressed type
+                self.pub_image_yellow_lane.publish(self.cvBridge.cv2_to_compressed_imgmsg(mask, "jpg"))
+
+            elif self.pub_image_type == "raw":
+                # publishes yellow lane filtered image in raw type
+                self.pub_image_yellow_lane.publish(self.cvBridge.cv2_to_imgmsg(mask, "bgr8"))
+
+        return fraction_num, mask
 
     def fit_from_lines(self, lane_fit, image):
         nonzero = image.nonzero()
@@ -386,14 +439,12 @@ class DetectLane():
                 # Draw the lane onto the warped blank image
                 cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
-            #only white line
             if white_fraction > 3000 and yellow_fraction <= 3000:
                 centerx = np.subtract(self.right_fitx, 320)
                 pts_center = np.array([np.transpose(np.vstack([centerx, ploty]))])
 
                 cv2.polylines(color_warp_lines, np.int_([pts_center]), isClosed=False, color=(0, 255, 255), thickness=12)
 
-            #only yellow line
             if white_fraction <= 3000 and yellow_fraction > 3000:
                 centerx = np.add(self.left_fitx, 320)
                 pts_center = np.array([np.transpose(np.vstack([centerx, ploty]))])
@@ -420,19 +471,38 @@ class DetectLane():
         final = cv2.addWeighted(cv_image, 1, color_warp, 0.2, 0)
         final = cv2.addWeighted(final, 1, color_warp_lines, 1, 0)
 
+        # msg_pub_errmoving = UInt8()
+        # msg_pub_errmoving = 0
+
         if self.pub_image_type == "compressed":
             if self.is_center_x_exist == True:
                 # publishes lane center
                 msg_desired_center = Float64()
-                msg_desired_center_top = Float64()
-                msg_desired_center_down = Float64()
-                msg_desired_center_down.data = centerx.item(0)
                 msg_desired_center.data = centerx.item(350)
-                msg_desired_center_top.data = centerx.item(599)
                 self.pub_lane.publish(msg_desired_center)
-                self.pub_lane_down.publish(msg_desired_center_down)
-                self.pub_lane_top.publish(msg_desired_center_top)
-            
+            # ####add for no lane
+            # else:
+            #     stop_time = 0
+            #     stop_time = time.time()
+            #     wait_time = 0
+            #     while True:
+            #         force_time = time.time()
+            #         wait_time = force_time - stop_time
+            #         if self.is_center_x_exist == True:
+            #             # publishes lane center
+            #             msg_desired_center = Float64()
+            #             msg_desired_center.data = centerx.item(350)
+            #             self.pub_lane.publish(msg_desired_center)
+            #         break
+            #         if wait_time >= 10:
+            #             rospy.loginfo("no lane")
+            #             msg_pub_errmoving = 1
+            #             msg_desired_center = Float64()
+            #             msg_desired_center.data = centerx.item(350)
+            #             self.pub_lane.publish(msg_desired_center)
+            #             self.pub_errmoving.publish(msg_pub_errmoving)
+            #             break
+            # ###
             self.pub_image_lane.publish(self.cvBridge.cv2_to_compressed_imgmsg(final, "jpg"))
 
         elif self.pub_image_type == "raw":
@@ -441,7 +511,29 @@ class DetectLane():
                 msg_desired_center = Float64()
                 msg_desired_center.data = centerx.item(350)
                 self.pub_lane.publish(msg_desired_center)
-            
+            # ####add for no lane
+            # else:
+            #     stop_time = 0
+            #     stop_time = time.time()
+            #     wait_time = 0
+            #     while True:
+            #         force_time = time.time()
+            #         wait_time = force_time - stop_time
+            #         if self.is_center_x_exist == True:
+            #             # publishes lane center
+            #             msg_desired_center = Float64()
+            #             msg_desired_center.data = centerx.item(350)
+            #             self.pub_lane.publish(msg_desired_center)
+            #         break
+            #         if wait_time >= 10:
+            #             rospy.loginfo("no lane")
+            #             msg_pub_errmoving = 1
+            #             msg_desired_center = Float64()
+            #             msg_desired_center.data = centerx.item(350)
+            #             self.pub_lane.publish(msg_desired_center)
+            #             self.pub_errmoving.publish(msg_pub_errmoving)
+            #         break
+            # ###
             self.pub_image_lane.publish(self.cvBridge.cv2_to_imgmsg(final, "bgr8"))
         
     def main(self):
