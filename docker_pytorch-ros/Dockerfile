@@ -115,7 +115,7 @@ RUN ./config/shell/bash_setup.sh "${USER}" "${GROUP}" && \
 RUN sudo mkdir /home/"${USER}"/work
 WORKDIR /home/"${USER}"/work
 
-# ENTRYPOINT [ "/entrypoint.sh", "terminator" ]
-ENTRYPOINT [ "/entrypoint.sh", "tmux" ]
+ENTRYPOINT [ "/entrypoint.sh", "terminator" ]
+# ENTRYPOINT [ "/entrypoint.sh", "tmux" ]
 # ENTRYPOINT [ "/entrypoint.sh", "bash" ]
 # ENTRYPOINT [ "/entrypoint.sh" ]
