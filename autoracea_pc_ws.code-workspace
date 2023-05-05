@@ -1,0 +1,40 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		}
+	],
+	"settings": {},
+	"extensions": {
+		"recommendations": [
+			"almenon.arepl",
+			"formulahendry.auto-close-tag",
+			"formulahendry.auto-rename-tag",
+			"njpwerner.autodocstring",
+			"ms-python.autopep8",
+			"jeff-hykin.better-cpp-syntax",
+			"aaron-bond.better-comments",
+			"jeff-hykin.better-dockerfile-syntax",
+			"jeff-hykin.better-shellscript-syntax",
+			"ms-vscode.cpptools",
+			"hyeon.c-math-viewer",
+			"matepek.vscode-catch2-test-adapter",
+			"naumovs.color-highlight",
+			"vincaslt.highlight-matching-tag",
+			"ms-python.isort",
+			"ajshort.msg",
+			"ionutvmi.path-autocomplete",
+			"kevinrose.vsc-python-indent",
+			"littlefoxteam.vscode-python-test-adapter",
+			"ms-iot.vscode-ros",
+			"foxundermoon.shell-format",
+			"timonwong.shellcheck",
+			"dpkristensen-garmin.udev-rules",
+			"redhat.vscode-yaml",
+			"dotjoshjohnson.xml",
+			"redhat.vscode-xml",
+			"truman.autocomplate-shell",
+			"hansrobo.ros2-snippets"
+		]
+	}
+}
