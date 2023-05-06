@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.0.1-cudnn8-devel-ubuntu20.04
+FROM nvidia/cuda:11.4.3-cudnn8-devel-ubuntu20.04
 ############################## SYSTEM PARAMETERS ##############################
 # * Arguments
 ARG USER=initial
@@ -115,7 +115,7 @@ RUN ./config/shell/bash_setup.sh "${USER}" "${GROUP}" && \
 RUN sudo mkdir /home/"${USER}"/work
 WORKDIR /home/"${USER}"/work
 
-ENTRYPOINT [ "/entrypoint.sh", "terminator" ]
-# ENTRYPOINT [ "/entrypoint.sh", "tmux" ]
-# ENTRYPOINT [ "/entrypoint.sh", "bash" ]
+# ENTRYPOINT [ "/entrypoint.sh", "terminator" ]
+# ENTRYPOINT "/entrypoint.sh", "tmux" ]
+ENTRYPOINT [ "/entrypoint.sh", "bash" ]
 # ENTRYPOINT [ "/entrypoint.sh" ]
