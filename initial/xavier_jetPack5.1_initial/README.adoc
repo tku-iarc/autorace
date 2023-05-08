@@ -1,0 +1,63 @@
+= README
+:ex
+:toc: left
+
+== Automatic configuration
+
+[source, shell]
+----
+git clone --depth 1 https://github.com/ycpss91255/user_config.git
+----
+
+=== Base configuration
+[source, shell]
+----
+sudo apt update && \
+sudo apt upgrade -y && \
+sudo apt autoremove -y && \
+sudo apt autoclean
+----
+
+=== WIFI configuration
+1. Install
+[source, shell]
+----
+sudo apt install -y --no-install-recommends \
+    netplan.io nmtui && \
+sudo cp <current_dir>/iwlwifi-ty-a0-gf-a0-59.ucode /lib/firmware && \
+sudo mv /lib/firmware/iwlwifi-ty-a0-gf-a0.pnvm \
+/lib/firmware/iwlwifi-ty-a0-gf-a0.pnvm.bak && \
+----
+2. varify
+* wifi connent 5G or 2.4G
+[soure, shell]
+----
+ifconfig # 
+iwconfig
+----
+
+=== Power mode
+[source, shell]
+----
+sudo nvpmodel -m 0 && \
+sudo apt install -y --no-install-recommends \
+    python3-pip && \
+sudo -H pip install -U jetson_stats && \
+
+----
+
+=== Docker reinstall
+
+=== SSH configuration
+
+
+== Manual configuration
+
+=== WIFI configuration
+
+=== Docker reinstall
+
+=== SSH configuration
+
+=== 
+

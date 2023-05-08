@@ -1,0 +1,15 @@
+# fish usbcam (video)
+# Bus 001 Device 010: ID 0ac8:0346 Z-Star Microelectronics Corp.
+SUBSYSTEM=="video4linux", KERNEL=="video[02468]", ATTRS{idVendor}=="0ac8", ATTRS{idProduct}=="0346", MODE="0666", SYMLINK+="fish"
+
+# normal usbcma (video)
+# Bus 001 Device 011: ID 1e4e:0109 Cubeternet
+SUBSYSTEM=="video4linux",KERNEL=="video[02468]", ATTRS{idVendor}=="1e4e", ATTRS{idProduct}=="0109", MODE="0666", SYMLINK+="normal"
+
+# 2D LiDAR (ttyUSB)
+# Bus 001 Device 016: ID 10c4:ea60 Silicon Labs CP210x UART Bridge
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", MODE="0666", SYMLINK+="lidar"
+
+# OpenCR (ttyACM)
+# Bus 001 Device 017: ID 0483:5740 STMicroelectronics Virtual COM Port
+SUBSYSTEM=="tty", ATTRS{idVendor}=="0483", ATTRS{idProduct}=="5740", MODE="0666", SYMLINK+="opencr"
