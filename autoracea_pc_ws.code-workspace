@@ -4,7 +4,14 @@
 			"path": ".."
 		}
 	],
-	"settings": {},
+	"settings": {
+    "statsBar.memoUsage.format": "$(database) ${percent}%",
+    "statsBar.modules": [
+        "cpuLoad",
+        "memoUsage"
+    ],
+    "statsBar.location": "Right",
+	},
 	"extensions": {
 		"recommendations": [
 			"almenon.arepl",
