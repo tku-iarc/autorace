@@ -1,0 +1,2 @@
+# nano_uart
+SUBSYSTEM=="tty", ATTRS{idVendor}=="10c4", ATTRS{idProduct}=="ea60", ATTRS{serial}=="0002", MODE="0666", SYMLINK+="nano_uart"
