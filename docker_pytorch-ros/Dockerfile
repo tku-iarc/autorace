@@ -57,6 +57,9 @@ RUN apt update && \
         libopencv-dev \
         # pytorch-YOLOv4
         libfreetype6-dev \
+        # usb_cam
+        libv4l-dev \
+        v4l-utils \
         # * Work tools
     && \
     apt clean && \
@@ -66,13 +69,26 @@ RUN apt update && \
 RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > \
     /etc/apt/sources.list.d/ros-latest.list' && \
     curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | sudo apt-key add - && \
+    dpkg --add-architecture armhf && \
     apt update && \
     apt install -y --no-install-recommends \
         ros-noetic-desktop-full \
+        ros-noetic-rosserial-python \
         ros-noetic-turtlebot3-msgs \
+        ros-noetic-hls-lfcd-lds-driver \
+        python3-catkin-tools \
+        libc6:armhf \
         && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+
+ENV ROS_MASTER_URL=http://localhost:11311
+ENV ROS_HOSTNAME=localhost
+ENV ROS_IP=localhost
+ENV TURTLEBOT3_MODEL=burger
+ENV LDS_MODEL=LDS-01
+ENV OPENCR_PORT=/dev/opencr
+ENV OPENCR_MODEL=burger
 
 # * Install pytorch-YOLOv4
 RUN git clone https://github.com/Tianxiaomo/pytorch-YOLOv4 /home/"${USER}"/pytorch-YOLOv4 && \
