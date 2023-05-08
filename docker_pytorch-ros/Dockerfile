@@ -75,6 +75,7 @@ RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main"
         ros-noetic-desktop-full \
         ros-noetic-rosserial-python \
         ros-noetic-turtlebot3-msgs \
+        ros-noetic-gmapping \
         ros-noetic-hls-lfcd-lds-driver \
         python3-catkin-tools \
         libc6:armhf \
@@ -82,13 +83,15 @@ RUN sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main"
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
+        # ros-noetic-navigation \
+
 ENV ROS_MASTER_URL=http://localhost:11311
 ENV ROS_HOSTNAME=localhost
 ENV ROS_IP=localhost
 ENV TURTLEBOT3_MODEL=burger
 ENV LDS_MODEL=LDS-01
 ENV OPENCR_PORT=/dev/opencr
-ENV OPENCR_MODEL=burger
+ENV OPENCR_MODEL=burger_noetic
 
 # * Install pytorch-YOLOv4
 RUN git clone https://github.com/Tianxiaomo/pytorch-YOLOv4 /home/"${USER}"/pytorch-YOLOv4 && \

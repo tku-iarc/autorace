@@ -105,15 +105,13 @@ function get_workdir() {
 #    GPU_FLAG: if NVIDIA graphics card and nvidia-docker2 or nvidia-container-runtime is installed, empty string otherwise
 #
 function check_nvidia() {
-    # if (lspci | grep -q VGA ||
-    #     lspci | grep -iq NVIDIA ||
-    #     lsmod | grep -q nvidia ||
-    #     nvidia-smi -L >/dev/null 2>&1 | grep -iq nvidia) &&
-    #     (command -v nvidia-smi >/dev/null 2>&1) &&
-    #     (command -v nvidia-docker >/dev/null 2>&1 ||
-    #         dpkg -l | grep -q nvidia-container-toolkit); then
-    if (command -v nvidia-docker >/dev/null 2>&1 || \
-        dpkg -l | grep -q nvidia-container-toolkit); then
+    if (lspci | grep -q VGA ||
+        lspci | grep -iq NVIDIA ||
+        lsmod | grep -q nvidia ||
+        nvidia-smi -L >/dev/null 2>&1 | grep -iq nvidia) &&
+        (command -v nvidia-smi >/dev/null 2>&1) &&
+        (command -v nvidia-docker >/dev/null 2>&1 ||
+            dpkg -l | grep -q nvidia-container-toolkit); then
         GPU_FLAG="--gpus all"
     else
         GPU_FLAG=""
@@ -129,6 +127,7 @@ function check_nvidia() {
 #    None
 #
 # Returns:
+#    docker_hub_user: If you have logged in to docker, it is the user name of docker hub
 #    user: the user of the current Docker environment or the user of the current system
 #    group: the group of the current user
 #    uid: the UID of the current user
@@ -136,20 +135,18 @@ function check_nvidia() {
 #    hardware: the hardware architecture of the current system
 #
 function get_system_info() {
-    # Try to retrieve the current user from Docker using the `docker info` command and store it in the `user` variable
+    # Try to retrieve the current user from Docker using the `docker info`
+    # command and store it in the `docker_hub_user` variable
     # If that fails, fall back to using the `id` command to get the current user
     docker_info_name=$(docker info 2>/dev/null | grep Username | cut -d ' ' -f 3)
     if [[ -z "${docker_info_name}" ]]; then
-        user="$(id -un)"
-        group="$(id -gn)"
+        docker_hub_user="$(id -un)"
     else
-        user="${docker_info_name}"
-        group="${docker_info_name}"
+        docker_hub_user="${docker_info_name}"
     fi
-    # user=$(docker info 2>/dev/null | grep Username | cut -d ' ' -f 3 || id -un)
 
-    # Retrieve the group of the current user using the `id` command and store it in the `group` variable
-    # group=$(docker info 2>/dev/null | grep Username | cut -d ' ' -f 3 || id -gn)
+    user="$(id -un)"
+    group="$(id -gn)"
 
     # Retrieve the UID of the current user using the `id` command and store it in the `uid` variable
     uid="$(id -u)"
@@ -161,7 +158,7 @@ function get_system_info() {
     hardware="$(uname -m)"
 
     # Print out the values of user, group, uid, gid and hardware
-    printf "%s %s %d %d %s" "${user}" "${group}" "${uid}" "${gid}" "${hardware}"
+    printf "%s %s %s %d %d %s" "${docker_hub_user}" "${user}" "${group}" "${uid}" "${gid}" "${hardware}"
 }
 
 # This function sets the Dockerfile name based on the directory path and hardware architecture
@@ -295,7 +292,7 @@ FILE_DIR=$(dirname "$(readlink -f "${0}")")
 
 
 GPU_FLAG="$(check_nvidia)"
-read -r user group uid gid hardware <<<"$(get_system_info)"
+read -r docker_hub_user user group uid gid hardware <<<"$(get_system_info)"
 IMAGE="$(set_image_name "${FILE_DIR}")"
 WS_PATH="$(get_workdir "${FILE_DIR}" "${IMAGE}")"
 DOCKERFILE_NAME=$(set_dockerfile "${FILE_DIR}" "${hardware}")
@@ -332,6 +329,7 @@ CONTAINER="${IMAGE}"
 if [ "${DEBUG}" = true ]; then
     echo -e "GPU_FLAG=${GPU_FLAG}\n"
 
+    echo "docker_hub_user=${docker_hub_user}"
     echo "user=${user}"
     echo "group=${group}"
     echo "uid=${uid}"
@@ -340,6 +338,7 @@ if [ "${DEBUG}" = true ]; then
 
     echo "FILE_DIR=${FILE_DIR}"
     echo "WS_PATH=${WS_PATH}"
+# BUG: docker image is a-z not A-Z
     echo "IMAGE=${IMAGE}"
     echo -e "CONTAINER=${CONTAINER}\n"
 

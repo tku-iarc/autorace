@@ -17,4 +17,5 @@ docker run --rm \
     -v /etc/localtime:/etc/localtime:ro \
     -v /dev:/dev \
     -v "${WS_PATH}":/home/"${user}"/work \
-    -it --name "${CONTAINER}" "${user}"/"${IMAGE}"
+    -it --name "${CONTAINER}" "${docker_hub_user}"/"${IMAGE}"
+
