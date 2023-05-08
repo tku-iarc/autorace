@@ -28,13 +28,61 @@ sudo cp <current_dir>/iwlwifi-ty-a0-gf-a0-59.ucode /lib/firmware && \
 sudo mv /lib/firmware/iwlwifi-ty-a0-gf-a0.pnvm \
 /lib/firmware/iwlwifi-ty-a0-gf-a0.pnvm.bak && \
 ----
-2. varify
+2. verify
 * wifi connent 5G or 2.4G
 [soure, shell]
 ----
-ifconfig # 
+ifconfig #
 iwconfig
 ----
+
+download openCR 12v power supply
+
+look camera pixel format
+http://wiki.ros.org/usb_cam/Troubleshooting
+----
+v4l2-ctl --list-formats-ext --device=/dev/video0 | grep -e '^[[:space:]]*\[[0-9]*\]'
+----
+
+motor control
+roslaunch turtlebot3_bringup turtlebot3_robot.launch
+
+
+rostopic type /cmd_vel
+geometry_msgs/Twist
+
+rosmsg show geometry_msgs/Twist
+geometry_msgs/Vector3 linear
+  float64 x
+  float64 y
+  float64 z
+geometry_msgs/Vector3 angular
+  float64 x
+  float64 y
+  float64 z
+
+SLAM
+roslaunch turtlebot3_slam turtlebot3_slam.launch slam_methods:=gmapping
+
+Navigation
+roslaunch turtlebot3_navigation turtlebot3_navigation.launch map_file:=$HOME/map.yaml
+
+[] rosed turtlebot3_autorace_detect detect_lane.launch
+* filter black
+[] model and image check
+[] Level 1
+* rgd led color ctrl
+[] Level 2
+* detect lane
+[] Level 3
+* 2D LiDAR
+[] Level 4
+* input & output line left main
+* 2D LiDAR
+[] Level 5
+* autorace 2020
+[] Level 6
+* SLAM
 
 === Power mode
 [source, shell]
@@ -59,5 +107,5 @@ sudo -H pip install -U jetson_stats && \
 
 === SSH configuration
 
-=== 
+===
 
