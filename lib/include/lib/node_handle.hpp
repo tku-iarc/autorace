@@ -16,7 +16,6 @@
  ******************************/
 #define DEBUG 1
 
-
 using namespace std;
 /**
  * @brief NodeHandle class
@@ -25,7 +24,7 @@ using namespace std;
  * @param rate ROS rate
  */
 class NodeHandle {
-public:
+ public:
   NodeHandle();
   ~NodeHandle();
   void init(int argc, char **argv, string node_name);
@@ -43,11 +42,10 @@ public:
   void setRosRate(ros::Rate *rate);
   void setRosNodeHandle(ros::NodeHandle *nh);
 
-private:
+ private:
   ros::NodeHandle *nh;
   ros::Rate *rate;
   string node_name;
-
 };
 
 #endif
