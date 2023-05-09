@@ -40,11 +40,13 @@ class NodeHandle {
   void setRosRate(double rate);
   void setRosRate(ros::Rate *rate);
   void setRosNodeHandle(ros::NodeHandle *nh);
+  void setParam(string param_name, int param_value);
 
   // get functions
   string getNodeName();
   ros::NodeHandle *getRosNodeHandle();
   ros::Rate *getRosRate();
+  void getParam(string param_name, int &param_value);
 
  private:
   ros::NodeHandle *nh;
