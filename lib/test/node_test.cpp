@@ -1,5 +1,6 @@
 //* Include system header files
 #include <stdio.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -10,8 +11,7 @@
 
 int main(int argc, char **argv) {
   NodeHandle nh;
-  nh.init(argc, argv, "test");
-  nh.setRosRate(1);
+  nh.init(argc, argv, "test", 1);
 
   int count = 0;
 

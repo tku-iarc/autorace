@@ -14,7 +14,7 @@
 /*******************************
  * Define
  ******************************/
-#define DEBUG 1
+// #define DEBUG 1
 
 using namespace std;
 /**
@@ -33,14 +33,18 @@ class NodeHandle {
   void init(int argc, char **argv, string node_name, ros::Rate *rate);
   void spin();
   void shutdown();
+
+  // set functions
   void setNodeName(string node_name);
-  string getNodeName();
-  ros::NodeHandle *getRosNodeHandle();
-  ros::Rate *getRosRate();
   void setRosRate(int rate);
   void setRosRate(double rate);
   void setRosRate(ros::Rate *rate);
   void setRosNodeHandle(ros::NodeHandle *nh);
+
+  // get functions
+  string getNodeName();
+  ros::NodeHandle *getRosNodeHandle();
+  ros::Rate *getRosRate();
 
  private:
   ros::NodeHandle *nh;

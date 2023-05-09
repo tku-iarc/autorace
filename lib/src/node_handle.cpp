@@ -17,6 +17,28 @@ void NodeHandle::init(int argc, char **argv, string node_name) {
   this->nh = new ros::NodeHandle();
 }
 
+void NodeHandle::init(int argc, char **argv, string node_name, int rate) {
+  ros::init(argc, argv, node_name);
+  this->node_name = node_name;
+  this->nh = new ros::NodeHandle();
+  this->rate = new ros::Rate(rate);
+}
+
+void NodeHandle::init(int argc, char **argv, string node_name, double rate) {
+  ros::init(argc, argv, node_name);
+  this->node_name = node_name;
+  this->nh = new ros::NodeHandle();
+  this->rate = new ros::Rate(rate);
+}
+
+void NodeHandle::init(int argc, char **argv, string node_name,
+                      ros::Rate *rate) {
+  ros::init(argc, argv, node_name);
+  this->node_name = node_name;
+  this->nh = new ros::NodeHandle();
+  this->rate = rate;
+}
+
 void NodeHandle::spin() { ros::spin(); }
 
 void NodeHandle::shutdown() { ros::shutdown(); }
